@@ -48,8 +48,8 @@ class Ngram:
     @classmethod
     # 导入文件
     def load_file(cls):
-        pos = pd.read_excel('corpus/posT.xlsx', header=None, index=None)
-        neg = pd.read_excel('corpus/negT.xlsx', header=None, index=None)
+        pos = pd.read_excel('corpus/Sentiment1.xlsx', header=None, index=None)
+        neg = pd.read_excel('corpus/Sentiment0.xlsx', header=None, index=None)
 
         cutword = lambda x: cls.text_parse(x)  # 分词函数
         pos['word'] = pos[1].apply(cutword)
@@ -70,6 +70,7 @@ class Ngram:
         bigram_finder = BigramCollocationFinder.from_words(words)  # 把文本变成双词搭配的形式
         bigrams = bigram_finder.nbest(score_fn, n)  # 使用卡方统计的方法，选择排名前n的双词
         new_bigrams = [u + ' ' + v for (u, v) in bigrams]
+
         return cls.unigramf(new_bigrams)
 
     @classmethod
@@ -84,9 +85,8 @@ class Ngram:
         return a
 
     @classmethod
-    # 方案4：二元模型+最优特征权重的特征选择（利用卡方统计）
-    def feature_choose(cls, n=10000):
-        pos, neg = cls.load_file()
+    # 方案4：一元模型+最优特征权重的特征选择（利用卡方统计）
+    def unigram_chi(cls, pos, neg, n=10000):
         pos_words = list(itertools.chain(*pos))
         neg_words = list(itertools.chain(*neg))
 
@@ -105,7 +105,7 @@ class Ngram:
         total_word_count = pos_word_count + neg_word_count  # 总词
         word_scores = {}  # 包括了每个词和这个词的信息量
 
-        for word, freq in word_tf.iteritems():
+        for word, freq in word_tf.items():
             pos_score = BigramAssocMeasures.chi_sq(con_word_tf['pos'][word], (freq, pos_word_count),
                                                    total_word_count)  # 计算积极词的卡方统计量,这里也可以计算互信息等其它统计量
             neg_score = BigramAssocMeasures.chi_sq(con_word_tf['neg'][word], (freq, neg_word_count),
@@ -114,15 +114,139 @@ class Ngram:
         best_vals = sorted(word_scores.items(), key=lambda item: item[1], reverse=True)[
                     :n]  # 把词按信息量倒序排序。n是特征的维度，是可以不断调整直至最优的
         best_words = set([w for w, s in best_vals])
+        print(best_words)
         return dict([(word, True) for word in best_words])
 
     @classmethod
+    # 构建特征
+    def build_features(cls):
+        pos, neg = cls.load_file()  # 载入数据
+        print(len(pos), "===", len(neg))
+        pos_words = list(itertools.chain(*pos))
+        neg_words = list(itertools.chain(*neg))
+        pos_words.extend(neg_words)
+        dataset = pos_words
+        """
+        features = cls.unigramf(dataset)  # 单个词作为特征
+        pos_feature = []
+        for items in pos:
+            a = {}
+            for item in items:
+                if item in features.keys():
+                    a[item] = True
+            posword = [a, 'pos']
+            pos_feature.append(posword)
+
+        neg_feature = []
+        for items in neg:
+            a = {}
+            for item in items:
+                if item in features.keys():
+                    a[item] = True
+            negword = [a, 'neg']
+            neg_feature.append(negword)
+        """
+        """
+        features = cls.bigramf(dataset)  # 二元特征
+        pos_feature = []
+        for items in pos:
+            a = {}
+            bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
+            bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
+            new_bigrams = [u + ' ' + v for (u, v) in bigrams]
+            for item in new_bigrams:
+                if item in features.keys():
+                    a[item] = True
+            posword = [a, 'pos']
+            pos_feature.append(posword)
+
+        neg_feature = []
+        for items in neg:
+            a = {}
+            bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
+            bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
+            new_bigrams = [u + ' ' + v for (u, v) in bigrams]
+            for item in new_bigrams:
+                if item in features.keys():
+                    a[item] = True
+            negword = [a, 'neg']
+            neg_feature.append(negword)
+        """
+        """
+        features = cls.unigram_and_bigramf(dataset)  # 一元和二元特征
+        pos_feature = []
+        for items in pos:
+            a = {}
+            bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
+            bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
+            new_bigrams = [u + ' ' + v for (u, v) in bigrams]
+            new_bigrams = new_bigrams + items
+            for item in new_bigrams:
+                if item in features.keys():
+                    a[item] = True
+            posword = [a, 'pos']
+            pos_feature.append(posword)
+
+        neg_feature = []
+        for items in neg:
+            a = {}
+            bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
+            bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
+            new_bigrams = [u + ' ' + v for (u, v) in bigrams]
+            new_bigrams = new_bigrams + items
+            for item in new_bigrams:
+                if item in features.keys():
+                    a[item] = True
+            negword = [a, 'neg']
+            neg_feature.append(negword)
+        """
+        features = cls.unigram_chi(pos, neg)  # 权重+一元特征
+        pos_feature = []
+        for items in pos:
+            a = {}
+            for item in items:
+                if item in features.keys():
+                    a[item] = True
+            posword = [a, 'pos']
+            pos_feature.append(posword)
+
+        neg_feature = []
+        for items in neg:
+            a = {}
+            for item in items:
+                if item in features.keys():
+                    a[item] = True
+            negword = [a, 'neg']
+            neg_feature.append(negword)
+        return pos_feature, neg_feature
+
+    @classmethod
     # 计算分类器的准确度
-    def score(cls, classifer, x_train):
-        classifer = SklearnClassifier(classifer)
-        classifer.train(x_train)
+    def score(cls, mclassifier, x_train, x_test):
+        data, tag = zip(*x_test)  # 分离测试集合的数据和标签，便于验证和测试
+        classifier = SklearnClassifier(mclassifier)
+        classifier.train(x_train)
+        pred = classifier.classify_many(data)  # 给出预测的标签
+        n = 0
+        s = len(pred)
+        for i in range(0, s):
+            if pred[i] == tag[i]:
+                n = n + 1
+        return n / s  # 分类器准确度
         pass
 
 
 if __name__ == '__main__':
-    Ngram.load_file()
+    pos_feature, neg_feature = Ngram.build_features()
+    shuffle(pos_feature)
+    shuffle(neg_feature)
+    index = int((len(pos_feature) + len(neg_feature)) * 0.2)
+    x_train = pos_feature[index:] + neg_feature[index:]
+    x_test = pos_feature[:index] + neg_feature[:index]
+
+    print('BernoulliNB`s accuracy is %f' % Ngram.score(BernoulliNB(), x_train, x_test))
+    print('MultinomiaNB`s accuracy is %f' % Ngram.score(MultinomialNB(), x_train, x_test))
+    print('LogisticRegression`s accuracy is  %f' % Ngram.score(LogisticRegression(), x_train, x_test))
+    print('SVC`s accuracy is %f' % Ngram.score(SVC(), x_train, x_test))
+    print('LinearSVC`s accuracy is %f' % Ngram.score(LinearSVC(), x_train, x_test))
+    print('NuSVC`s accuracy is %f' % Ngram.score(NuSVC(), x_train, x_test))
