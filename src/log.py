@@ -28,8 +28,8 @@ def console_out(file_name, *message_text):
     logging.getLogger().addHandler(console)  # 实例化添加handler
 
     # Print information              # 输出日志级别
-    logging.debug(message_text)
+    # logging.debug(message_text)
     # logging.info('logger info message')
-    # logging.warning('logger warning message')
+    logging.warning(message_text)
     # logging.error('logger error message')
     # logging.critical('logger critical message')

@@ -2,7 +2,7 @@ import re
 import nltk
 import numpy as np
 import pandas as pd
-from src import log
+from src.log import log
 from sklearn.svm import SVC
 from sklearn.externals import joblib
 from gensim.models.word2vec import Word2Vec
@@ -18,20 +18,20 @@ class SVMClassifer:
 
     @classmethod
     def load_file(cls):
-        neg = pd.read_excel('corpus/negs.xlsx', header=None, index=None)
-        pos = pd.read_excel('corpus/poss.xlsx', header=None, index=None)
+        neg = pd.read_excel('corpus/Sentiment0.xlsx', header=None, index=None)
+        pos = pd.read_excel('corpus/Sentiment1.xlsx', header=None, index=None)
 
         # pos[1] 即excle表格中第二列
         cw = lambda x: cls.text_parse(x)  # 定义分词函数
         pos['words'] = pos[1].apply(cw)
         neg['words'] = neg[1].apply(cw)
-        print(pos)
+        # print(pos)
         log.console_out("log_svm.txt", "pos length =", len(pos), "neg length =", len(neg))
         # use 1 for positive sentiment, 0 for negative
         y = np.concatenate((np.ones(len(pos)), np.zeros(len(neg))))  # 合并语料
         x_train, x_test, y_train, y_test = train_test_split(np.concatenate((pos['words'], neg['words'])), y,
                                                             test_size=0.2)  # 划分训练和测试集合8/2
-        print(x_train, '\n', y_train)
+        # print(x_train, '\n', y_train)
         np.save('svm_data/y_train.npy', y_train)
         np.save('svm_data/y_test.npy', y_test)
         log.console_out("log_svm.txt", "load_file done!")
@@ -45,10 +45,15 @@ class SVMClassifer:
         except:
             sentence = x
         sentence = re.sub(r'@\s*[\w]+ | ?#[\w]+ | ?&[\w]+; | ?[^\x00-\xFF]+', '', sentence)
+        # 可以匹配一些颜文字
         pattern = r""" (?x)(?:[a-z]\.)+ 
                            | \d+(?:\.\d+)?%?\w+
                            | \w+(?:[-']\w+)*
-                           | [][.,;"'?():-_`]"""
+                           | <\d+
+                           | (?:[><*$]+[._]*[<>*$]+)
+                           | [:;][\w*\d*][-]*[)(]*
+                           | (?:[-.!?]{2,})
+                           | [][.,;"'?():$-_*`]"""
         word_list = nltk.regexp_tokenize(sentence, pattern)
         return word_list
 
@@ -108,23 +113,23 @@ class SVMClassifer:
         x_train, x_test = cls.load_file()
         cls.save_train_vecs(x_train, x_test)  # w2v计算词向量
         train_vecs, y_train, test_vecs, y_test = cls.get_data()
-        clf = SVC(kernel='rbf', verbose=True)
+        clf = SVC(kernel='rbf', verbose=True, probability=True)
         clf.fit(train_vecs, y_train)
         joblib.dump(clf, 'svm_data/svm_model/model.pkl')
+        # print(test_vecs)
+        predict_y = clf.predict(test_vecs)  # 基于SVM对验证集做出预测，prodict_y 为预测的结果
+        test_accuracy = metrics.accuracy_score(y_test, predict_y)  # 验证集上的准确率
 
-        predict_prob_y = clf.predict_proba(x_test)  # 基于SVM对验证集做出预测，prodict_prob_y 为预测的概率
-        test_accuracy = metrics.roc_auc_score(y_test, predict_prob_y)  # 验证集上的准确率
-
-        y_pred = clf.predict(y_test)
-        test_precision = metrics.precision_score(y_test, y_pred, average='weighted')
-        test_recall = metrics.recall_score(y_test, y_pred, average='weighted')
+        # y_pred = clf.predict(y_test)
+        # test_precision = metrics.precision_score(y_test, y_pred, average='weighted')
+        # test_recall = metrics.recall_score(y_test, y_pred, average='weighted')
         log.console_out("log_svm.txt", "SVM score = ", clf.score(test_vecs, y_test))  # 记录得分
         log.console_out("log_svm.txt", "test_accuracy = ", test_accuracy)  # 记录准确率
 
     # 得到待预测单个句子的词向量
     @classmethod
     def get_predict_vecs(cls, words):
-        n_dim = 300
+        n_dim = 128
         comment_w2v = Word2Vec.load('svm_data/w2v_model/w2v_model.pkl')
         # comment_w2v.train(words)
         train_vecs = cls.build_wordvector(words, n_dim, comment_w2v)
@@ -142,4 +147,6 @@ class SVMClassifer:
         return result[0]
 
 
-SVMClassifer.load_file()
+SVMClassifer.train()
+res = SVMClassifer.predict('I hate you,I JUST THINK THIS THING IS BAD')
+print(res)
