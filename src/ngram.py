@@ -226,6 +226,7 @@ class Ngram:
         data, tag = zip(*x_test)  # 分离测试集合的数据和标签，便于验证和测试
         classifier = SklearnClassifier(mclassifier)
         classifier.train(x_train)
+        print('Trian done!')
         pred = classifier.classify_many(data)  # 给出预测的标签
         n = 0
         s = len(pred)
