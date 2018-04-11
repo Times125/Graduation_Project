@@ -2,7 +2,7 @@ import re
 import nltk
 import numpy as np
 import pandas as pd
-from src.log import log
+from src import log
 from sklearn.svm import SVC
 from sklearn.externals import joblib
 from gensim.models.word2vec import Word2Vec
