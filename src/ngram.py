@@ -11,7 +11,7 @@ import nltk
 import sklearn
 import itertools
 import pandas as pd
-from src import log
+import log
 from random import shuffle
 from nltk.collocations import BigramCollocationFinder
 from nltk.metrics import BigramAssocMeasures
@@ -48,8 +48,8 @@ class Ngram:
     @classmethod
     # 导入文件
     def load_file(cls):
-        pos = pd.read_excel('corpus/Sentiment1.xlsx', header=None, index=None)
-        neg = pd.read_excel('corpus/Sentiment0.xlsx', header=None, index=None)
+        pos = pd.read_excel('corpus/posT.xlsx', header=None, index=None)
+        neg = pd.read_excel('corpus/negT.xlsx', header=None, index=None)
 
         cutword = lambda x: cls.text_parse(x)  # 分词函数
         pos['word'] = pos[1].apply(cutword)
@@ -66,7 +66,7 @@ class Ngram:
 
     @classmethod
     # 方案2：二元模型;把双个词作为特征，并使用卡方统计的方法，选择排名前的双词
-    def bigramf(cls, words, score_fn=BigramAssocMeasures.chi_sq, n=10000):
+    def bigramf(cls, words, score_fn=BigramAssocMeasures.chi_sq, n=2000):
         bigram_finder = BigramCollocationFinder.from_words(words)  # 把文本变成双词搭配的形式
         bigrams = bigram_finder.nbest(score_fn, n)  # 使用卡方统计的方法，选择排名前n的双词
         new_bigrams = [u + ' ' + v for (u, v) in bigrams]
@@ -86,7 +86,7 @@ class Ngram:
 
     @classmethod
     # 方案4：一元模型+最优特征权重的特征选择（利用卡方统计）
-    def unigram_chi(cls, pos, neg, n=10000):
+    def unigram_chi(cls, pos, neg, n=1000):
         pos_words = list(itertools.chain(*pos))
         neg_words = list(itertools.chain(*neg))
 
@@ -121,13 +121,15 @@ class Ngram:
     # 构建特征
     def build_features(cls):
         pos, neg = cls.load_file()  # 载入数据
-        print(len(pos), "===", len(neg))
+
         pos_words = list(itertools.chain(*pos))
         neg_words = list(itertools.chain(*neg))
         pos_words.extend(neg_words)
         dataset = pos_words
+
         """
         features = cls.unigramf(dataset)  # 单个词作为特征
+        print(len(pos), "===", len(neg), "===", len(dataset))
         pos_feature = []
         for items in pos:
             a = {}
@@ -145,14 +147,19 @@ class Ngram:
                     a[item] = True
             negword = [a, 'neg']
             neg_feature.append(negword)
+                        
         """
         """
         features = cls.bigramf(dataset)  # 二元特征
         pos_feature = []
         for items in pos:
             a = {}
-            bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
-            bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
+
+            try:
+                bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
+                bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
+            except:
+                continue
             new_bigrams = [u + ' ' + v for (u, v) in bigrams]
             for item in new_bigrams:
                 if item in features.keys():
@@ -163,8 +170,11 @@ class Ngram:
         neg_feature = []
         for items in neg:
             a = {}
-            bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
-            bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
+            try:
+                bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
+                bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
+            except:
+                continue
             new_bigrams = [u + ' ' + v for (u, v) in bigrams]
             for item in new_bigrams:
                 if item in features.keys():
@@ -172,6 +182,7 @@ class Ngram:
             negword = [a, 'neg']
             neg_feature.append(negword)
         """
+
         """
         features = cls.unigram_and_bigramf(dataset)  # 一元和二元特征
         pos_feature = []
@@ -200,6 +211,7 @@ class Ngram:
             negword = [a, 'neg']
             neg_feature.append(negword)
         """
+
         features = cls.unigram_chi(pos, neg)  # 权重+一元特征
         pos_feature = []
         for items in pos:
@@ -218,6 +230,7 @@ class Ngram:
                     a[item] = True
             negword = [a, 'neg']
             neg_feature.append(negword)
+
         return pos_feature, neg_feature
 
     @classmethod
@@ -245,9 +258,17 @@ if __name__ == '__main__':
     x_train = pos_feature[index:] + neg_feature[index:]
     x_test = pos_feature[:index] + neg_feature[:index]
 
-    print('BernoulliNB`s accuracy is %f' % Ngram.score(BernoulliNB(), x_train, x_test))
-    print('MultinomiaNB`s accuracy is %f' % Ngram.score(MultinomialNB(), x_train, x_test))
-    print('LogisticRegression`s accuracy is  %f' % Ngram.score(LogisticRegression(), x_train, x_test))
-    print('SVC`s accuracy is %f' % Ngram.score(SVC(), x_train, x_test))
-    print('LinearSVC`s accuracy is %f' % Ngram.score(LinearSVC(), x_train, x_test))
-    print('NuSVC`s accuracy is %f' % Ngram.score(NuSVC(), x_train, x_test))
+    a = Ngram.score(BernoulliNB(), x_train, x_test)
+    b = Ngram.score(MultinomialNB(), x_train, x_test)
+    c = Ngram.score(LogisticRegression(), x_train, x_test)
+    d = Ngram.score(SVC(), x_train, x_test)
+    e = Ngram.score(LinearSVC(), x_train, x_test)
+    f = Ngram.score(NuSVC(), x_train, x_test)
+    log.console_out('record.txt', 'unigram + best; n=10000', a, b, c, d, e, f)
+
+    # print('BernoulliNB`s accuracy is %f' % Ngram.score(BernoulliNB(), x_train, x_test))
+    # print('MultinomiaNB`s accuracy is %f' % Ngram.score(MultinomialNB(), x_train, x_test))
+    # print('LogisticRegression`s accuracy is  %f' % Ngram.score(LogisticRegression(), x_train, x_test))
+    # print('SVC`s accuracy is %f' % Ngram.score(SVC(), x_train, x_test))
+    # print('LinearSVC`s accuracy is %f' % Ngram.score(LinearSVC(), x_train, x_test))
+    # print('NuSVC`s accuracy is %f' % Ngram.score(NuSVC(), x_train, x_test))
