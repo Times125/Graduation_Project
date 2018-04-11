@@ -179,8 +179,11 @@ class Ngram:
             features = cls.unigram_and_bigramf(dataset, n=number)  # 一元和二元特征
             for items in pos:
                 a = {}
-                bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
-                bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
+                try:
+                    bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
+                    bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
+                except:
+                    continue
                 new_bigrams = [u + ' ' + v for (u, v) in bigrams]
                 new_bigrams = new_bigrams + items
                 for item in new_bigrams:
@@ -190,8 +193,11 @@ class Ngram:
                 pos_feature.append(posword)
             for items in neg:
                 a = {}
-                bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
-                bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
+                try:
+                    bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
+                    bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
+                except:
+                    continue
                 new_bigrams = [u + ' ' + v for (u, v) in bigrams]
                 new_bigrams = new_bigrams + items
                 for item in new_bigrams:
@@ -251,7 +257,6 @@ class Ngram:
         e = Ngram.score(LinearSVC(), x_train, x_test)
         f = Ngram.score(NuSVC(), x_train, x_test)
         log.console_out(filename, taskname, n, a, b, c, d, e, f)
-        print('all done!')
 
 
 if __name__ == '__main__':
@@ -270,6 +275,7 @@ if __name__ == '__main__':
         elif tasks[i] == tasks[3]:
             for n in ns:
                 Ngram.record_res(filename, tasks[i], i, n)
+    print('all done!')
     # print('BernoulliNB`s accuracy is %f' % Ngram.score(BernoulliNB(), x_train, x_test))
     # print('MultinomiaNB`s accuracy is %f' % Ngram.score(MultinomialNB(), x_train, x_test))
     # print('LogisticRegression`s accuracy is  %f' % Ngram.score(LogisticRegression(), x_train, x_test))
