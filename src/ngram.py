@@ -48,8 +48,8 @@ class Ngram:
     @classmethod
     # 导入文件
     def load_file(cls):
-        pos = pd.read_excel('corpus/posss.xlsx', header=None, index=None)
-        neg = pd.read_excel('corpus/negss.xlsx', header=None, index=None)
+        pos = pd.read_excel('corpus/posT.xlsx', header=None, index=None)
+        neg = pd.read_excel('corpus/negT.xlsx', header=None, index=None)
 
         cutword = lambda x: cls.text_parse(x)  # 分词函数
         pos['word'] = pos[1].apply(cutword)
@@ -239,14 +239,13 @@ class Ngram:
             if pred[i] == tag[i]:
                 n = n + 1
         return n / s  # 分类器准确度
-        pass
 
     @classmethod
     def record_res(cls, filename, taskname, f, n):
         pos_feature, neg_feature = Ngram.build_features(flag=f, number=n)
         shuffle(pos_feature)
         shuffle(neg_feature)
-        index = int((len(pos_feature) + len(neg_feature)) * 0.2)
+        index = int(((len(pos_feature) + len(neg_feature))/2) * 0.2)
         x_train = pos_feature[index:] + neg_feature[index:]
         x_test = pos_feature[:index] + neg_feature[:index]
 
@@ -262,7 +261,7 @@ class Ngram:
 if __name__ == '__main__':
     tasks = ['unigram', 'bigram_best', 'uni_bigram', 'unigram_best']
     ns = [2500, 5000, 7500, 10000]
-    for i in range(4):
+    for i in range(2,4):
         filename = tasks[0] + '.txt'
         if tasks[i] == tasks[0]:
             Ngram.record_res(filename, tasks[i], i, 0)
