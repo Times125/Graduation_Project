@@ -3,8 +3,9 @@ import nltk
 import numpy as np
 import pandas as pd
 from src import log
-from sklearn.svm import SVC,LinearSVC
-from sklearn.naive_bayes import BernoulliNB,MultinomialNB
+from sklearn.svm import SVC, LinearSVC
+from sklearn.naive_bayes import BernoulliNB, MultinomialNB
+from sklearn.linear_model import LogisticRegression
 from sklearn.externals import joblib
 from gensim.models.word2vec import Word2Vec
 from sklearn.model_selection import train_test_split
@@ -76,7 +77,7 @@ class SVMClassifer:
     # 计算词向量
     @classmethod
     def save_train_vecs(cls, x_train, x_test):
-        n_dim = 400
+        n_dim = 128
         # Initialize model and build vocab
         comment_w2v = Word2Vec(size=n_dim, min_count=5)
         comment_w2v.build_vocab(x_train)
@@ -114,9 +115,10 @@ class SVMClassifer:
         x_train, x_test = cls.load_file()
         cls.save_train_vecs(x_train, x_test)  # w2v计算词向量
         train_vecs, y_train, test_vecs, y_test = cls.get_data()
-        clf = SVC(kernel='rbf', verbose=True, probability=True)
-        # clf = BernoulliNB()
+        # clf = SVC(kernel='rbf', verbose=True, probability=True)
+        clf = BernoulliNB()
         # clf = LinearSVC()
+        # clf = LogisticRegression()
         clf.fit(train_vecs, y_train)
         joblib.dump(clf, 'svm_data/svm_model/model.pkl')
         # print(test_vecs)
@@ -132,7 +134,7 @@ class SVMClassifer:
     # 得到待预测单个句子的词向量
     @classmethod
     def get_predict_vecs(cls, words):
-        n_dim = 400
+        n_dim = 128
         comment_w2v = Word2Vec.load('svm_data/w2v_model/w2v_model.pkl')
         # comment_w2v.train(words)
         train_vecs = cls.build_wordvector(words, n_dim, comment_w2v)
