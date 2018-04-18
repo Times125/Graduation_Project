@@ -3,6 +3,7 @@ import nltk
 import numpy as np
 import pandas as pd
 from src import log
+from nltk.corpus import stopwords
 from sklearn.svm import SVC, LinearSVC
 from sklearn.naive_bayes import BernoulliNB, MultinomialNB
 from sklearn.linear_model import LogisticRegression
@@ -57,7 +58,9 @@ class SVMClassifer:
                            | (?:[-.!?]{2,})
                            | [][.,;"'?():$-_*`]"""
         word_list = nltk.regexp_tokenize(sentence, pattern)
-        return word_list
+        filter_word = [w for w in word_list if
+                       w not in stopwords.words('english')]  # 去停用词和特殊标点符号
+        return filter_word
 
     @classmethod
     # 对每个句子的所有词向量取均值
