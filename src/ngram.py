@@ -373,7 +373,7 @@ class Ngram:
 
 if __name__ == '__main__':
     tasks = ['unigram', 'bigram_best', 'uni_bigram', 'unigram_best']
-    ns = [2500, 5000, 7500, 10000]
+    ns = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
     for i in range(0, 4):
         filename = tasks[0] + '.txt'
         if tasks[i] == tasks[0]:
