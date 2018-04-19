@@ -153,7 +153,7 @@ class Ngram:
         return cls.unigramf(new_bigrams)
 
     @classmethod
-    # 方案3：二元模型+单词；把二元和单词结合作为特征，并使用卡方统计的方法，选择排名前n的双词
+    # 方案3：二元模型+单词；选择最优的前n个二元模型和全部的单词 组合作为特征
     def unigram_and_bigramf(cls, words, score_fn=BigramAssocMeasures.chi_sq, n=2000):
         bigram_finder = BigramCollocationFinder.from_words(words)  # 把文本变成双词搭配的形式
         bigrams = bigram_finder.nbest(score_fn, n)  # 使用卡方统计的方法，选择排名前n的双词
