@@ -14,7 +14,9 @@ import pandas as pd
 from src import log
 from random import shuffle
 from nltk.collocations import BigramCollocationFinder
+from nltk.collocations import TrigramCollocationFinder
 from nltk.metrics import BigramAssocMeasures
+from nltk.metrics import TrigramAssocMeasures
 from nltk.probability import FreqDist, ConditionalFreqDist
 from nltk.classify.scikitlearn import SklearnClassifier
 from sklearn.svm import SVC, LinearSVC, NuSVC
@@ -24,6 +26,76 @@ from sklearn.metrics import accuracy_score
 
 
 class Ngram:
+    # 去除类似soooo 保留soo
+    rpt_regex = re.compile(r"(.)\1{1,}", re.IGNORECASE)
+
+    # twitter中@***这种将被替换成__HAND_
+    hndl_regex = re.compile(r"@(\w+)")
+
+    # twitter中话题#***这种将被替换成__HASH_
+    hash_regex = re.compile(r"#(\w+)")
+
+    # twitter中话题#***这种将被替换成__URL_
+    url_regex = re.compile(r"(http|https|ftp)://[a-zA-Z0-9\./]+")
+
+    # twitter中存在的一些表情
+    emoticons = [('__EMOT_SMILE_', [':-)', ':)', '(:', '(-:', '^_^', '>y<', '>o<', '>O<', '^.^']),
+                 ('__EMOT_LAUGH_', [':-D', ':D', 'X-D', 'XD', 'xD', ]),
+                 ('__EMOT_LOVE_', ['<3', ':\*', '<33', '<333']),
+                 ('__EMOT_WINK_', [';-)', ';)', ';-D', ';D', '(;', '(-;', '←_←', '→_→', '<_<', '>_>']),
+                 ('__EMOT_FROWN_', [':-(', ':(', '(:', '(-:', '=_=']),
+                 ('__EMOT_CRY_', [':,(', ':\'(', ':"(', ':((', 't_t', 'T_T', '→_←', 'T^T', '>_<']),
+                 ]
+
+    @classmethod
+    def url_repl(cls, match):
+        return '__URL_'
+
+    @classmethod
+    def hash_repl(cls, match):
+        return '__HASH_' + match.group(1).upper()
+
+    @classmethod
+    def hndl_repl(cls, match):
+        return '__HAND_'
+
+    @classmethod
+    def rpt_repl(cls, match):
+        return match.group(1) + match.group(1)
+
+    @classmethod
+    def regex_union(cls, arr):
+        return '(' + '|'.join(arr) + ')'
+
+    @classmethod
+    def escape_paren(cls, arr):
+        return [text.replace(')', '[)}\]]').replace('(', '[({\[]') for text in arr]
+
+    negtn_regex = re.compile(r"""(?:^(?:never|no|nothing|nowhere|noone|none|not|havent|hasnt|hadnt|cant|couldnt|shouldnt|
+             wont|wouldnt|dont|doesnt|didnt|isnt|aret|aint)$)|n't""", re.X)  # 否定检查
+
+    @classmethod
+    def get_negation_features(cls, words):
+        INF = 0.0
+        negtn = [bool(cls.negtn_regex.search(w)) for w in words]
+
+        left = [0.0] * len(words)
+        prev = 0.0
+        for i in range(0, len(words)):
+            if (negtn[i]):
+                prev = 1.0
+            left[i] = prev
+            prev = max(0.0, prev - 0.1)
+
+        right = [0.0] * len(words)
+        prev = 0.0
+        for i in reversed(range(0, len(words))):
+            if (negtn[i]):
+                prev = 1.0
+            right[i] = prev
+            prev = max(0.0, prev - 0.1)
+
+        return dict(zip(['neg_l(' + w + ')' for w in words] + ['neg_r(' + w + ')' for w in words], left + right))
 
     @classmethod
     # 使用正则分词（没有做停用词处理）
@@ -32,24 +104,30 @@ class Ngram:
             sentence = x.strip().lower()
         except:
             sentence = x
-        sentence = re.sub(r'@\s*[\w]+ | ?#[\w]+ | ?&[\w]+; | ?[^\x00-\xFF]+', '', sentence)
-        # 可以匹配一些颜文字
+
+        sentence = re.sub(cls.hndl_regex, cls.hndl_repl, sentence)  # 匹配替换@***
+        sentence = re.sub(cls.hash_regex, cls.hash_repl, sentence)  # 匹配替换#***
+        sentence = re.sub(cls.url_regex, cls.url_repl, sentence)  # 匹配替换URL
+        sentence = re.sub(cls.rpt_regex, cls.rpt_repl, sentence)  # 匹配替换类似yoooooooo为yoo
+
+        emoticons_regex = [(repl, re.compile(cls.regex_union(cls.escape_paren(regx)))) for (repl, regx) in
+                           cls.emoticons]  # 匹配替换表情
+        for (repl, regx) in emoticons_regex:
+            sentence = re.sub(regx, ' ' + repl + ' ', sentence)
+
         pattern = r""" (?x)(?:[a-z]\.)+ 
-                              | \d+(?:\.\d+)?%?\w+
-                              | \w+(?:[-']\w+)*
-                              | <\d+
-                              | (?:[><*$]+[._]*[<>*$]+)
-                              | [:;][\w*\d*][-]*[)(]*
-                              | (?:[-.!?]{2,})
-                              | [][.,;"'?():$-_*`]"""
+                        | \d+(?:\.\d+)?%?\w+
+                        | \w+(?:[-']\w+)*
+                        | (?:[-.!?]{2,})
+                        | [][.,;"'?():$-_*`]"""
         word_list = nltk.regexp_tokenize(sentence, pattern)
         return word_list
 
     @classmethod
     # 导入文件
     def load_file(cls):
-        pos = pd.read_excel('corpus/posT.xlsx', header=None, index=None)
-        neg = pd.read_excel('corpus/negT.xlsx', header=None, index=None)
+        pos = pd.read_excel('corpus/posss.xlsx', header=None, index=None)
+        neg = pd.read_excel('corpus/negss.xlsx', header=None, index=None)
 
         cutword = lambda x: cls.text_parse(x)  # 分词函数
         pos['word'] = pos[1].apply(cutword)
@@ -131,19 +209,22 @@ class Ngram:
         neg_feature = []
         if flag == 0:
             features = cls.unigramf(dataset)  # 单个词作为特征
-
             for items in pos:
                 a = {}
                 for item in items:
                     if item in features.keys():
-                        a[item] = True
+                        a[item] = 1
+                # negation_features = cls.get_negation_features(items)  # 引入否定检查
+                # a.update(negation_features)
                 posword = [a, 'pos']
                 pos_feature.append(posword)
             for items in neg:
                 a = {}
                 for item in items:
                     if item in features.keys():
-                        a[item] = True
+                        a[item] = 1
+                # negation_features = cls.get_negation_features(items)
+                # a.update(negation_features)
                 negword = [a, 'neg']
                 neg_feature.append(negword)
 
@@ -159,7 +240,7 @@ class Ngram:
                 new_bigrams = [u + ' ' + v for (u, v) in bigrams]
                 for item in new_bigrams:
                     if item in features.keys():
-                        a[item] = True
+                        a[item] = 1
                 posword = [a, 'pos']
                 pos_feature.append(posword)
             for items in neg:
@@ -172,7 +253,7 @@ class Ngram:
                 new_bigrams = [u + ' ' + v for (u, v) in bigrams]
                 for item in new_bigrams:
                     if item in features.keys():
-                        a[item] = True
+                        a[item] = 1
                 negword = [a, 'neg']
                 neg_feature.append(negword)
         elif flag == 2:
@@ -188,7 +269,7 @@ class Ngram:
                 new_bigrams = new_bigrams + items
                 for item in new_bigrams:
                     if item in features.keys():
-                        a[item] = True
+                        a[item] = 1
                 posword = [a, 'pos']
                 pos_feature.append(posword)
             for items in neg:
@@ -202,7 +283,7 @@ class Ngram:
                 new_bigrams = new_bigrams + items
                 for item in new_bigrams:
                     if item in features.keys():
-                        a[item] = True
+                        a[item] = 1
                 negword = [a, 'neg']
                 neg_feature.append(negword)
         elif flag == 3:
@@ -211,7 +292,7 @@ class Ngram:
                 a = {}
                 for item in items:
                     if item in features.keys():
-                        a[item] = True
+                        a[item] = 1
                 posword = [a, 'pos']
                 pos_feature.append(posword)
 
@@ -219,7 +300,7 @@ class Ngram:
                 a = {}
                 for item in items:
                     if item in features.keys():
-                        a[item] = True
+                        a[item] = 1
                 negword = [a, 'neg']
                 neg_feature.append(negword)
 
@@ -232,36 +313,68 @@ class Ngram:
         classifier = SklearnClassifier(mclassifier)
         classifier.train(x_train)
         print('Trian done!')
+        pos_index = []
+        neg_index = []
+        for i in range(0, len(tag)):
+            if tag[i] == 'pos':  # pos
+                pos_index.append(i)  # 记录所有pos的index，计算精确率
+            else:
+                neg_index.append(i)
+
         pred = classifier.classify_many(data)  # 给出预测的标签
+        print(type(pred), len(pred), len(tag))
         n = 0
         s = len(pred)
         for i in range(0, s):
             if pred[i] == tag[i]:
                 n = n + 1
-        return n / s  # 分类器准确度
+        accu = n / s  # 分类器准确率
+        print(accu)
+        print(pos_index, tag)
+        tp = 0  # 将正类预测为正类的数目
+        fn = 0  # 将正类预测为负类的数目
+        fp = 0  # 将负类预测为正类的数目
+        tn = 0  # 将负类预测为负类的数目
+
+        for i in pos_index:
+            if pred[i] == tag[i]:
+                tp = tp + 1
+            else:
+                fn = fn + 1
+        for i in neg_index:
+            if pred[i] == tag[i]:
+                tn = tn + 1
+            else:
+                fp = fp + 1
+        print(tp, '--', fn, '--', fp, '--', tn)
+        recall = tp / (tp + fn)  # 召回率
+
+        f1 = (2 * tp) / (len(tag) + tp - tn)  # f1值
+        return accu, recall, f1
 
     @classmethod
     def record_res(cls, filename, taskname, f, n):
         pos_feature, neg_feature = Ngram.build_features(flag=f, number=n)
         shuffle(pos_feature)
         shuffle(neg_feature)
-        index = int(((len(pos_feature) + len(neg_feature))/2) * 0.2)
+        index = int(((len(pos_feature) + len(neg_feature)) / 2) * 0.2)
         x_train = pos_feature[index:] + neg_feature[index:]
         x_test = pos_feature[:index] + neg_feature[:index]
 
-        a = Ngram.score(BernoulliNB(), x_train, x_test)
-        b = Ngram.score(MultinomialNB(), x_train, x_test)
-        c = Ngram.score(LogisticRegression(), x_train, x_test)
-        d = Ngram.score(SVC(), x_train, x_test)
-        e = Ngram.score(LinearSVC(), x_train, x_test)
-        f = Ngram.score(NuSVC(), x_train, x_test)
-        log.console_out(filename, taskname, n, a, b, c, d, e, f)
+        a, aa, aaa = Ngram.score(BernoulliNB(), x_train, x_test)
+        b, bb, bbb = Ngram.score(MultinomialNB(), x_train, x_test)
+        c, cc, ccc = Ngram.score(LogisticRegression(), x_train, x_test)
+        d, dd, ddd = Ngram.score(SVC(), x_train, x_test)
+        e, ee, eee = Ngram.score(LinearSVC(), x_train, x_test)
+        f, ff, fff = Ngram.score(NuSVC(), x_train, x_test)
+        log.console_out(filename, taskname, n, ('BNB', a, aa, aaa), ('MNB', b, bb, bbb), ('LR', c, cc, ccc),
+                        ('SVC-rbf', d, dd, ddd), ('LSVC', e, ee, eee), ('NuSVC', f, ff, fff))
 
 
 if __name__ == '__main__':
     tasks = ['unigram', 'bigram_best', 'uni_bigram', 'unigram_best']
     ns = [2500, 5000, 7500, 10000]
-    for i in range(4):
+    for i in range(1):
         filename = tasks[0] + '.txt'
         if tasks[i] == tasks[0]:
             Ngram.record_res(filename, tasks[i], i, 0)

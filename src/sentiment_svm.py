@@ -58,9 +58,9 @@ class SVMClassifer:
                            | (?:[-.!?]{2,})
                            | [][.,;"'?():$-_*`]"""
         word_list = nltk.regexp_tokenize(sentence, pattern)
-        filter_word = [w for w in word_list if
-                       w not in stopwords.words('english')]  # 去停用词和特殊标点符号
-        return filter_word
+        # filter_word = [w for w in word_list if
+        #                w not in stopwords.words('english')]  # 去停用词和特殊标点符号
+        return word_list
 
     @classmethod
     # 对每个句子的所有词向量取均值
