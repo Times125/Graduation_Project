@@ -140,13 +140,14 @@ class Ngram:
     @classmethod
     # 方案1：一元模型，单个词作为特征
     def unigramf(cls, words):
-        return dict([(word, True) for word in words])
+        return dict([(word, 1) for word in words])
 
     @classmethod
-    # 方案2：二元模型;把双个词作为特征，并使用卡方统计的方法，选择排名前的双词
+    # 方案2：二元模型;把双个词作为特征，
     def bigramf(cls, words, score_fn=BigramAssocMeasures.chi_sq, n=2000):
-        bigram_finder = BigramCollocationFinder.from_words(words)  # 把文本变成双词搭配的形式
-        bigrams = bigram_finder.nbest(score_fn, n)  # 使用卡方统计的方法，选择排名前n的双词
+        # bigram_finder = BigramCollocationFinder.from_words(words)  # 把文本变成双词搭配的形式
+        # bigrams = bigram_finder.nbest(score_fn, n)  # 使用卡方统计的方法，选择排名前n的双词
+        bigrams = nltk.bigrams(words)
         new_bigrams = [u + ' ' + v for (u, v) in bigrams]
 
         return cls.unigramf(new_bigrams)
