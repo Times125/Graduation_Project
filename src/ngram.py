@@ -41,7 +41,7 @@ class Ngram:
 
     # twitter中存在的一些表情
     emoticons = [('__EMOT_SMILE_', [':-)', ':)', '(:', '(-:', '^_^', '>y<', '>o<', '>O<', '^.^']),
-                 ('__EMOT_LAUGH_', [':-D', ':D', 'X-D', 'XD', 'xD', ':p', ':P' ]),
+                 ('__EMOT_LAUGH_', [':-D', ':D', 'X-D', 'XD', 'xD', ':p', ':P']),
                  ('__EMOT_LOVE_', ['<3', ':\*', '<33', '<333']),
                  ('__EMOT_WINK_', [';-)', ';)', ';-D', ';D', '(;', '(-;', '←_←', '→_→', '<_<', '>_>']),
                  ('__EMOT_SAD_', [':-(', ':(', '=_=', 'D:<', '</3', ':<']),
@@ -422,7 +422,7 @@ class Ngram:
                 n = n + 1
         accu = n / s  # 分类器准确率
         print(accu)
-        print(pos_index, tag)
+        # print(pos_index, tag)
         tp = 0  # 将正类预测为正类的数目
         fn = 0  # 将正类预测为负类的数目
         fp = 0  # 将负类预测为正类的数目
@@ -439,10 +439,15 @@ class Ngram:
             else:
                 fp = fp + 1
         print(tp, '--', fn, '--', fp, '--', tn)
-        recall = tp / (tp + fn)  # 召回率
+        pos_precision = tp / (tp + fp)  # pos的精确率
+        pos_recall = tp / (tp + fn)  # pos的召回率
+        pos_f1 = (2 * pos_precision * pos_recall) / (pos_precision + pos_recall)  # pos的f1值
 
-        f1 = (2 * tp) / (len(tag) + tp - tn)  # f1值
-        return accu, recall, f1
+        neg_precision = tn / (tn + fn)  # neg的精确率
+        neg_recall = tn / (tn + fp)  # neg的召回率
+        neg_f1 = (2 * neg_precision * neg_recall) / (neg_precision + neg_recall)  # neg的f1值
+
+        return accu, pos_precision, pos_recall, pos_f1, neg_precision, neg_recall, neg_f1
 
     @classmethod
     def record_res(cls, filename, taskname, f, n):
@@ -453,19 +458,24 @@ class Ngram:
         x_train = pos_feature[index:] + neg_feature[index:]
         x_test = pos_feature[:index] + neg_feature[:index]
 
-        a, aa, aaa = Ngram.score(BernoulliNB(), x_train, x_test)
-        b, bb, bbb = Ngram.score(MultinomialNB(), x_train, x_test)
-        c, cc, ccc = Ngram.score(LogisticRegression(), x_train, x_test)
-        d, dd, ddd = Ngram.score(SVC(), x_train, x_test)
-        e, ee, eee = Ngram.score(LinearSVC(), x_train, x_test)
-        f, ff, fff = Ngram.score(NuSVC(), x_train, x_test)
-        # 记录 准确率（Accuracy）、召回率（recall）、F1值
-        log.console_out(filename, taskname, n, ('BNB', a, aa, aaa), ('MNB', b, bb, bbb), ('LR', c, cc, ccc),
-                        ('SVC-rbf', d, dd, ddd), ('LSVC', e, ee, eee), ('NuSVC', f, ff, fff))
+        BNB_A, BNB_PP, BNB_PR, BNB_PF1, BNB_NP, BNB_NR, BNB_NF1 = Ngram.score(BernoulliNB(), x_train, x_test)
+        MNB_A, MNB_PP, MNB_PR, MNB_PF1, MNB_NP, MNB_NR, MNB_NF1 = Ngram.score(MultinomialNB(), x_train, x_test)
+        LR_A, LR_PP, LR_PR, LR_PF1, LR_NP, LR_NR, LR_NF1 = Ngram.score(LogisticRegression(), x_train, x_test)
+        SVC_A, SVC_PP, SVC_PR, SVC_PF1, SVC_NP, SVC_NR, SVC_NF1 = Ngram.score(SVC(), x_train, x_test)
+        LSVC_A, LSVC_PP, LSVC_PR, LSVC_PF1, LSVC_NP, LSVC_NR, LSVC_NF1 = Ngram.score(LinearSVC(), x_train, x_test)
+        NSVC_A, NSVC_PP, NSVC_PR, NSVC_PF1, NSVC_NP, NSVC_NR, NSVC_NF1 = Ngram.score(NuSVC(), x_train, x_test)
+        # 记录 准确率（Accuracy）、正面精确率（pos_precision），正面召回率（pos_recall）、正面F1值、负面面精确率（neg_precision）、负面召回率（neg_recall）,负面F1值
+        log.console_out(filename, taskname, n,
+                        ('BNB', BNB_A, 'pos:', BNB_PP, BNB_PR, BNB_PF1, 'neg:', BNB_NP, BNB_NR, BNB_NF1),
+                        ('MNB', MNB_A, 'pos:', MNB_PP, MNB_PR, MNB_PF1, 'neg:', MNB_NP, MNB_NR, MNB_NF1),
+                        ('LR', LR_A, 'pos:', LR_PP, LR_PR, LR_PF1, 'neg:', LR_NP, LR_NR, LR_NF1),
+                        ('SVC-rbf', SVC_A, 'pos:', SVC_PP, SVC_PR, SVC_PF1, 'neg:', SVC_NP, SVC_NR, SVC_NF1),
+                        ('LSVC', LSVC_A, 'pos:', LSVC_PP, LSVC_PR, LSVC_PF1, 'neg:', LSVC_NP, LSVC_NR, LSVC_NF1),
+                        ('NuSVC', NSVC_A, 'pos:', NSVC_PP, NSVC_PR, NSVC_PF1, 'neg:', NSVC_NP, NSVC_NR, NSVC_NF1))
 
 
 if __name__ == '__main__':
-    print(time.strftime('%Y-%m-%d %A %H:%M:%S',time.localtime(time.time())))
+    print(time.strftime('%Y-%m-%d %A %H:%M:%S', time.localtime(time.time())))
     # 7种搭配方案
     tasks = ['unigram', 'bigram', 'uni_bigram', 'unigram_info', 'uni_info_bigram', 'uni_bi_tri', 'uni_info_bi_tri']
     ns = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]

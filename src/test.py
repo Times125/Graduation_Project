@@ -9,6 +9,7 @@
 
 import nltk
 import re
+from src import log
 from sklearn.naive_bayes import MultinomialNB, BernoulliNB
 from nltk.classify.scikitlearn import SklearnClassifier
 
@@ -113,25 +114,27 @@ class Testme:
 
 
 if __name__ == '__main__':
+    log.console_out('1.txt',(1,2,(4,5)))
+    log.console_out('2.txt','22222')
     # x = "@times doesn't miss  him  and worries like it's her job or something #HMS.. ????? ------  >_<  >_> >< *_* :D ;0) Work's fine? an interesting coworker, ha! o_O Lots of typing, what fun! <3<3"
     # x = 'he T_T >y< :( <3<3'
-    feat = {}
-    x = "@times still doesn't miss  him  and worries like it's ? .her job or something ??? .... ---------"
-    y = Testme.text_parse(x)
-    print(y)
-    print('\n')
-    negation_features = Testme.get_negation_features(y)
-    print("negation_features-->", negation_features)
-    print('\n')
-    words_bi = ['has(%s)' % ','.join(map(str, bg)) for bg in nltk.bigrams(y)]
-    print(words_bi)
-    print('\n')
-    bag = {}
-    for f in words_bi:
-        bag[f] = 1
-    feat.update(bag)
-    feat.update(negation_features)
-    print(feat)
-    classifier = SklearnClassifier(BernoulliNB())
-    classifier.train([[feat, 'neg']])
-    print(classifier.classify(feat))
+    # feat = {}
+    # x = "@times still doesn't miss  him  and worries like it's ? .her job or something ??? .... ---------"
+    # y = Testme.text_parse(x)
+    # print(y)
+    # print('\n')
+    # negation_features = Testme.get_negation_features(y)
+    # print("negation_features-->", negation_features)
+    # print('\n')
+    # words_bi = ['has(%s)' % ','.join(map(str, bg)) for bg in nltk.bigrams(y)]
+    # print(words_bi)
+    # print('\n')
+    # bag = {}
+    # for f in words_bi:
+    #     bag[f] = 1
+    # feat.update(bag)
+    # feat.update(negation_features)
+    # print(feat)
+    # classifier = SklearnClassifier(BernoulliNB())
+    # classifier.train([[feat, 'neg']])
+    # print(classifier.classify(feat))
