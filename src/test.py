@@ -12,6 +12,7 @@ import re
 from sklearn.naive_bayes import MultinomialNB, BernoulliNB
 from nltk.classify.scikitlearn import SklearnClassifier
 
+
 class Testme:
     # 去除类似soooo 保留soo
     rpt_regex = re.compile(r"(.)\1{1,}", re.IGNORECASE)
@@ -30,7 +31,7 @@ class Testme:
                  ('__EMOT_LAUGH', [':-D', ':D', 'X-D', 'XD', 'xD', ]),
                  ('__EMOT_LOVE', ['<3', ':\*', ]),
                  ('__EMOT_WINK', [';-)', ';)', ';-D', ';D', '(;', '(-;', '←_←', '→_→', '<_<', '>_>']),
-                 ('__EMOT_FROWN', [':-(', ':(', '(:', '(-:', '=_=']),
+                 ('__EMOT_FROWN', [':-(', ':(', '(:', '(-:', '=_=', 'D:<','orz']),
                  ('__EMOT_CRY', [':,(', ':\'(', ':"(', ':((', 't_t', 'T_T', '→_←', 'T^T', '>_<']),
                  ]
 
@@ -82,7 +83,7 @@ class Testme:
             right[i] = prev
             prev = max(0.0, prev - 0.1)
 
-        return dict(zip(['neg_l(' + w + ')' for w in words] + ['neg_r(' + w + ')' for w in words],left + right))
+        return dict(zip(['neg_l(' + w + ')' for w in words] + ['neg_r(' + w + ')' for w in words], left + right))
 
     @classmethod
     # 使用正则分词（没有做停用词处理）
@@ -114,12 +115,12 @@ class Testme:
 if __name__ == '__main__':
     # x = "@times doesn't miss  him  and worries like it's her job or something #HMS.. ????? ------  >_<  >_> >< *_* :D ;0) Work's fine? an interesting coworker, ha! o_O Lots of typing, what fun! <3<3"
     # x = 'he T_T >y< :( <3<3'
-    feat ={}
-    x = "@times still doesn't miss  him  and worries like it's her job or something"
+    feat = {}
+    x = "@times still doesn't miss  him  and worries like it's ? .her job or something ??? .... ---------"
     y = Testme.text_parse(x)
     print(y)
     print('\n')
-    negation_features =Testme.get_negation_features(y)
+    negation_features = Testme.get_negation_features(y)
     print("negation_features-->", negation_features)
     print('\n')
     words_bi = ['has(%s)' % ','.join(map(str, bg)) for bg in nltk.bigrams(y)]

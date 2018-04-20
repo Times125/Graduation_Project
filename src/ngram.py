@@ -7,6 +7,7 @@
 @Description: N-gram SVM,NBayes,MaxEnt
 """
 import re
+import time
 import nltk
 import sklearn
 import itertools
@@ -40,10 +41,10 @@ class Ngram:
 
     # twitter中存在的一些表情
     emoticons = [('__EMOT_SMILE_', [':-)', ':)', '(:', '(-:', '^_^', '>y<', '>o<', '>O<', '^.^']),
-                 ('__EMOT_LAUGH_', [':-D', ':D', 'X-D', 'XD', 'xD', ]),
+                 ('__EMOT_LAUGH_', [':-D', ':D', 'X-D', 'XD', 'xD', ':p', ':P' ]),
                  ('__EMOT_LOVE_', ['<3', ':\*', '<33', '<333']),
                  ('__EMOT_WINK_', [';-)', ';)', ';-D', ';D', '(;', '(-;', '←_←', '→_→', '<_<', '>_>']),
-                 ('__EMOT_FROWN_', [':-(', ':(', '(:', '(-:', '=_=']),
+                 ('__EMOT_SAD_', [':-(', ':(', '=_=', 'D:<', '</3', ':<']),
                  ('__EMOT_CRY_', [':,(', ':\'(', ':"(', ':((', 't_t', 'T_T', '→_←', 'T^T', '>_<']),
                  ]
 
@@ -126,8 +127,8 @@ class Ngram:
     @classmethod
     # 导入文件
     def load_file(cls):
-        pos = pd.read_excel('corpus/posss.xlsx', header=None, index=None)
-        neg = pd.read_excel('corpus/negss.xlsx', header=None, index=None)
+        pos = pd.read_excel('corpus/posT.xlsx', header=None, index=None)
+        neg = pd.read_excel('corpus/negT.xlsx', header=None, index=None)
 
         cutword = lambda x: cls.text_parse(x)  # 分词函数
         pos['word'] = pos[1].apply(cutword)
@@ -138,34 +139,48 @@ class Ngram:
         return pos, neg
 
     @classmethod
-    # 方案1：一元模型，单个词作为特征
+    # 一元模型，单个词作为特征
     def unigramf(cls, words):
         return dict([(word, 1) for word in words])
 
     @classmethod
-    # 方案2：二元模型;把双个词作为特征，
-    def bigramf(cls, words, score_fn=BigramAssocMeasures.chi_sq, n=2000):
-        # bigram_finder = BigramCollocationFinder.from_words(words)  # 把文本变成双词搭配的形式
-        # bigrams = bigram_finder.nbest(score_fn, n)  # 使用卡方统计的方法，选择排名前n的双词
+    # 二元模型;把双个词作为特征
+    def bigramf(cls, words):
         bigrams = nltk.bigrams(words)
-        new_bigrams = [u + ' ' + v for (u, v) in bigrams]
-
+        new_bigrams = ['has(%s,%s)' % (u, v) for (u, v) in bigrams]
         return cls.unigramf(new_bigrams)
 
     @classmethod
-    # 方案3：二元模型+单词；选择最优的前n个二元模型和全部的单词 组合作为特征
-    def unigram_and_bigramf(cls, words, score_fn=BigramAssocMeasures.chi_sq, n=2000):
-        bigram_finder = BigramCollocationFinder.from_words(words)  # 把文本变成双词搭配的形式
-        bigrams = bigram_finder.nbest(score_fn, n)  # 使用卡方统计的方法，选择排名前n的双词
-        new_bigrams = [u + ' ' + v for (u, v) in bigrams]
+    # 三元模型;把三个词作为特征
+    def trigramf(cls, words):
+        trigrams = nltk.trigrams(words)
+        new_trigrams = ['has(%s,%s,%s)' % (w, u, v) for (w, u, v) in trigrams]
+        return cls.unigramf(new_trigrams)
+
+    @classmethod
+    # 一元模型 + 二元模型
+    def unigram_and_bigramf(cls, words):  # , score_fn=BigramAssocMeasures.chi_sq, n=2000):
+        # bigram_finder = BigramCollocationFinder.from_words(words)  # 把文本变成双词搭配的形式
+        # bigrams = bigram_finder.nbest(score_fn, n)  # 使用卡方统计的方法，选择排名前n的双词
         a = cls.unigramf(words)
-        b = cls.unigramf(new_bigrams)
+        b = cls.bigramf(words)
         a.update(b)
         return a
 
     @classmethod
-    # 方案4：一元模型+最优特征权重的特征选择（利用卡方统计）
-    def unigram_chi(cls, pos, neg, n=2000):
+    # 一元模型 + 二元模型 + 三元模型
+    def unigram_and_bigram_trigramf(cls, words):
+
+        a = cls.unigramf(words)
+        b = cls.bigramf(words)
+        c = cls.trigramf(words)
+        a.update(b)
+        a.update(c)
+        return a
+
+    @classmethod
+    # 一元模型+最优特征权重的特征选择（利用卡方统计）
+    def unigram_chi(cls, pos, neg, n=1000):
         pos_words = list(itertools.chain(*pos))
         neg_words = list(itertools.chain(*neg))
 
@@ -189,27 +204,30 @@ class Ngram:
                                                    total_word_count)  # 计算积极词的卡方统计量,这里也可以计算互信息等其它统计量
             neg_score = BigramAssocMeasures.chi_sq(con_word_tf['neg'][word], (freq, neg_word_count),
                                                    total_word_count)  # 计算消极词的卡方统计量
-            word_scores[word] = pos_score + neg_score  # 一个词的信息量等于积极卡方统计量加上消极卡方统计量
+            word_scores[word] = pos_score + neg_score  # 一个词的信息量等于积极卡方统计量加上消极卡方统计量(即算出信息增益)
         best_vals = sorted(word_scores.items(), key=lambda item: item[1], reverse=True)[
                     :n]  # 把词按信息量倒序排序。n是特征的维度，是可以不断调整直至最优的
         best_words = set([w for w, s in best_vals])
-        print(best_words)
-        return dict([(word, True) for word in best_words])
+        # print(best_words)
+        return dict([(word, 1) for word in best_words])
 
     @classmethod
     # 构建特征
-    def build_features(cls, flag=0, number=2000):
-        pos, neg = cls.load_file()  # 载入数据
+    def build_features(cls, flag=0, number=1000):
 
+        pos, neg = cls.load_file()  # 载入数据
         pos_words = list(itertools.chain(*pos))
         neg_words = list(itertools.chain(*neg))
         pos_words.extend(neg_words)
         dataset = pos_words
+
         print(len(pos), "===", len(neg), "===", len(dataset))
+
         pos_feature = []
         neg_feature = []
+        # 方案一：uni
         if flag == 0:
-            features = cls.unigramf(dataset)  # 单个词作为特征
+            features = cls.unigramf(dataset)
             for items in pos:
                 a = {}
                 for item in items:
@@ -228,17 +246,13 @@ class Ngram:
                 # a.update(negation_features)
                 negword = [a, 'neg']
                 neg_feature.append(negword)
-
+        # 方案二：bi
         elif flag == 1:
-            features = cls.bigramf(dataset, n=number)  # 二元特征
+            features = cls.bigramf(dataset)
             for items in pos:
                 a = {}
-                try:
-                    bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
-                    bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
-                except:
-                    continue
-                new_bigrams = [u + ' ' + v for (u, v) in bigrams]
+                bigrams = nltk.bigrams(items)
+                new_bigrams = ['has(%s,%s)' % (u, v) for (u, v) in bigrams]
                 for item in new_bigrams:
                     if item in features.keys():
                         a[item] = 1
@@ -246,28 +260,21 @@ class Ngram:
                 pos_feature.append(posword)
             for items in neg:
                 a = {}
-                try:
-                    bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
-                    bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
-                except:
-                    continue
-                new_bigrams = [u + ' ' + v for (u, v) in bigrams]
+                bigrams = nltk.bigrams(items)
+                new_bigrams = ['has(%s,%s)' % (u, v) for (u, v) in bigrams]
                 for item in new_bigrams:
                     if item in features.keys():
                         a[item] = 1
                 negword = [a, 'neg']
                 neg_feature.append(negword)
+        # 方案三：uni+bi
         elif flag == 2:
-            features = cls.unigram_and_bigramf(dataset, n=number)  # 一元和二元特征
+            features = cls.unigram_and_bigramf(dataset)  # 一元和二元特征
             for items in pos:
                 a = {}
-                try:
-                    bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
-                    bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
-                except:
-                    continue
-                new_bigrams = [u + ' ' + v for (u, v) in bigrams]
-                new_bigrams = new_bigrams + items
+                bigrams = nltk.bigrams(items)
+                new_bigrams = ['has(%s,%s)' % (u, v) for (u, v) in bigrams]
+                new_bigrams.extend(items)
                 for item in new_bigrams:
                     if item in features.keys():
                         a[item] = 1
@@ -275,19 +282,16 @@ class Ngram:
                 pos_feature.append(posword)
             for items in neg:
                 a = {}
-                try:
-                    bigram_finder = BigramCollocationFinder.from_words(items)  # 把文本变成双词搭配的形式
-                    bigrams = bigram_finder.nbest(BigramAssocMeasures.chi_sq, 1000)  # 使用卡方统计的方法，选择排名前n的双词
-                except:
-                    continue
-                new_bigrams = [u + ' ' + v for (u, v) in bigrams]
-                new_bigrams = new_bigrams + items
+                bigrams = nltk.bigrams(items)
+                new_bigrams = ['has(%s,%s)' % (u, v) for (u, v) in bigrams]
+                new_bigrams.extend(items)
                 for item in new_bigrams:
                     if item in features.keys():
                         a[item] = 1
                 negword = [a, 'neg']
                 neg_feature.append(negword)
-        elif flag == 3:
+        # 方案四：uni_info
+        elif flag == 3:  # 最优一元模型
             features = cls.unigram_chi(pos, neg, n=number)  # 权重+一元特征
             for items in pos:
                 a = {}
@@ -304,6 +308,93 @@ class Ngram:
                         a[item] = 1
                 negword = [a, 'neg']
                 neg_feature.append(negword)
+        # 方案五：uni_info + bi
+        elif flag == 4:  # 最优一元模型 + 二元模型
+            features = cls.unigram_chi(pos, neg, n=number)  # 最优一元模型
+            uni_feats = cls.bigramf(dataset)  # 二元模型
+            features.update(uni_feats)
+            for items in pos:
+                a = {}
+                bigrams = nltk.bigrams(items)
+                new_bigrams = ['has(%s,%s)' % (u, v) for (u, v) in bigrams]
+                new_bigrams.extend(items)
+                for item in new_bigrams:
+                    if item in features.keys():
+                        a[item] = 1
+                posword = [a, 'pos']
+                pos_feature.append(posword)
+            for items in neg:
+                a = {}
+                bigrams = nltk.bigrams(items)
+                new_bigrams = ['has(%s,%s)' % (u, v) for (u, v) in bigrams]
+                new_bigrams.extend(items)
+                for item in new_bigrams:
+                    if item in features.keys():
+                        a[item] = 1
+                negword = [a, 'neg']
+                neg_feature.append(negword)
+        # 方案六：uni + bi + tri
+        elif flag == 5:  # 一元模型 + 二元模型 + 三元模型
+            features = cls.unigram_and_bigram_trigramf(dataset)
+            for items in pos:
+                a = {}
+                bigrams = nltk.bigrams(items)
+                new_bigrams = ['has(%s,%s)' % (u, v) for (u, v) in bigrams]
+                new_bigrams.extend(items)
+                trigrams = nltk.trigrams(items)
+                new_trigrams = ['has(%s,%s,%s)' % (w, u, v) for (w, u, v) in trigrams]
+                new_trigrams.extend(new_bigrams)
+                for item in new_trigrams:
+                    if item in features.keys():
+                        a[item] = 1
+                posword = [a, 'pos']
+                pos_feature.append(posword)
+            for items in neg:
+                a = {}
+                bigrams = nltk.bigrams(items)
+                new_bigrams = ['has(%s,%s)' % (u, v) for (u, v) in bigrams]
+                new_bigrams.extend(items)
+                trigrams = nltk.trigrams(items)
+                new_trigrams = ['has(%s,%s,%s)' % (w, u, v) for (w, u, v) in trigrams]
+                new_trigrams.extend(new_bigrams)
+                for item in new_trigrams:
+                    if item in features.keys():
+                        a[item] = 1
+                negword = [a, 'neg']
+                neg_feature.append(negword)
+        # 方案七：uni_info + bi + tri
+        elif flag == 6:  # 最优一元模型 + 二元模型 + 三元模型
+            features = cls.unigram_chi(pos, neg, n=number)  # 最优一元模型
+            uni_feats = cls.bigramf(dataset)  # 二元模型
+            tri_feats = cls.trigramf(dataset)  # 三元模型
+            features.update(uni_feats)
+            features.update(tri_feats)
+            for items in pos:
+                a = {}
+                bigrams = nltk.bigrams(items)
+                new_bigrams = ['has(%s,%s)' % (u, v) for (u, v) in bigrams]
+                new_bigrams.extend(items)
+                trigrams = nltk.trigrams(items)
+                new_trigrams = ['has(%s,%s,%s)' % (w, u, v) for (w, u, v) in trigrams]
+                new_trigrams.extend(new_bigrams)
+                for item in new_trigrams:
+                    if item in features.keys():
+                        a[item] = 1
+                posword = [a, 'pos']
+                pos_feature.append(posword)
+            for items in neg:
+                a = {}
+                bigrams = nltk.bigrams(items)
+                new_bigrams = ['has(%s,%s)' % (u, v) for (u, v) in bigrams]
+                new_bigrams.extend(items)
+                trigrams = nltk.trigrams(items)
+                new_trigrams = ['has(%s,%s,%s)' % (w, u, v) for (w, u, v) in trigrams]
+                new_trigrams.extend(new_bigrams)
+                for item in new_trigrams:
+                    if item in features.keys():
+                        a[item] = 1
+                negword = [a, 'neg']
+                neg_feature.append(negword)
 
         return pos_feature, neg_feature
 
@@ -313,7 +404,7 @@ class Ngram:
         data, tag = zip(*x_test)  # 分离测试集合的数据和标签，便于验证和测试
         classifier = SklearnClassifier(mclassifier)
         classifier.train(x_train)
-        print('Trian done!')
+        print('===================================》》 Train done!')
         pos_index = []
         neg_index = []
         for i in range(0, len(tag)):
@@ -368,30 +459,34 @@ class Ngram:
         d, dd, ddd = Ngram.score(SVC(), x_train, x_test)
         e, ee, eee = Ngram.score(LinearSVC(), x_train, x_test)
         f, ff, fff = Ngram.score(NuSVC(), x_train, x_test)
+        # 记录 准确率（Accuracy）、召回率（recall）、F1值
         log.console_out(filename, taskname, n, ('BNB', a, aa, aaa), ('MNB', b, bb, bbb), ('LR', c, cc, ccc),
                         ('SVC-rbf', d, dd, ddd), ('LSVC', e, ee, eee), ('NuSVC', f, ff, fff))
 
 
 if __name__ == '__main__':
-    tasks = ['unigram', 'bigram_best', 'uni_bigram', 'unigram_best']
+    print(time.strftime('%Y-%m-%d %A %H:%M:%S',time.localtime(time.time())))
+    # 7种搭配方案
+    tasks = ['unigram', 'bigram', 'uni_bigram', 'unigram_info', 'uni_info_bigram', 'uni_bi_tri', 'uni_info_bi_tri']
     ns = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
-    for i in range(0, 4):
-        filename = tasks[0] + '.txt'
-        if tasks[i] == tasks[0]:
+    for i in range(0, 7):
+        filename = 'record.txt'
+        if tasks[i] == tasks[0]:  # uni
             Ngram.record_res(filename, tasks[i], i, 0)
-        elif tasks[i] == tasks[1]:
+        elif tasks[i] == tasks[1]:  # bi
+            Ngram.record_res(filename, tasks[i], i, 0)
+        elif tasks[i] == tasks[2]:  # uni_bi
+            Ngram.record_res(filename, tasks[i], i, 0)
+        elif tasks[i] == tasks[3]:  # uni_info
             for n in ns:
                 Ngram.record_res(filename, tasks[i], i, n)
-        elif tasks[i] == tasks[2]:
+        elif tasks[i] == tasks[4]:  # uni_info_bi
             for n in ns:
                 Ngram.record_res(filename, tasks[i], i, n)
-        elif tasks[i] == tasks[3]:
+        elif tasks[i] == tasks[5]:  # uni_bi_tri
+            Ngram.record_res(filename, tasks[i], i, 0)
+        elif tasks[i] == tasks[6]:  # uni_info_bi_tri
             for n in ns:
                 Ngram.record_res(filename, tasks[i], i, n)
-    print('all done!')
-    # print('BernoulliNB`s accuracy is %f' % Ngram.score(BernoulliNB(), x_train, x_test))
-    # print('MultinomiaNB`s accuracy is %f' % Ngram.score(MultinomialNB(), x_train, x_test))
-    # print('LogisticRegression`s accuracy is  %f' % Ngram.score(LogisticRegression(), x_train, x_test))
-    # print('SVC`s accuracy is %f' % Ngram.score(SVC(), x_train, x_test))
-    # print('LinearSVC`s accuracy is %f' % Ngram.score(LinearSVC(), x_train, x_test))
-    # print('NuSVC`s accuracy is %f' % Ngram.score(NuSVC(), x_train, x_test))
+    log.console_out(filename, "All Tasks Done")
+    print(time.strftime('%Y-%m-%d %A %H:%M:%S', time.localtime(time.time())))
