@@ -18,6 +18,7 @@ import keras
 import pandas as pd
 import re
 from src import log
+from keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 from gensim.models.word2vec import Word2Vec
 from gensim.corpora.dictionary import Dictionary
@@ -43,7 +44,7 @@ class LSTMClassifier:
     n_exposures = 10  # 词向量训练过程中，词频小于10的词语将会被忽略
     window_size = 7  # 词向量训练过程中窗口的大小，主要是决定某个单词被窗口内的词有关
     batch_size = 32  # 指定进行梯度下降时每个batch包含的样本数
-    n_epoch = 10  # 训练的轮数，每个epoch会把训练集轮一遍
+    n_epoch = 20  # 训练的轮数，每个epoch会把训练集轮一遍
     input_length = 140
     cpu_count = multiprocessing.cpu_count() or 4
 
@@ -226,9 +227,11 @@ class LSTMClassifier:
         model.add(Activation('sigmoid'))
 
         model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])  # 编译模型
-
-        model.fit(x_train, y_train, batch_size=cls.batch_size, epochs=cls.n_epoch,
-                  verbose=1, validation_data=(x_test, y_test))  # 训练模型
+        early_stopping = EarlyStopping(monitor='val_loss', patience=3)  # 当经过3轮验证集的loss不再下降时，中断训练
+        hist = model.fit(x_train, y_train, batch_size=cls.batch_size, epochs=cls.n_epoch,
+                         verbose=1, validation_split=0.1, shuffle=True, validation_data=(x_test, y_test),
+                         callbacks=[early_stopping])  # 训练模型10%测试集，10%验证集合
+        print('=============>history ', hist.history)  # 在每个epoch后记录训练/测试的loss和正确率
         score = model.evaluate(x_test, y_test, batch_size=cls.batch_size)  # 评估模型
 
         yaml_string = model.to_yaml()
@@ -236,6 +239,7 @@ class LSTMClassifier:
             outfile.write(yaml.dump(yaml_string, default_flow_style=True))
         model.save_weights(LSTM_MODEL_PATH.format(use_word_dim))
         print('Test score:', score)
+        log.console_out('lstm_w2v.txt', (100, hist.history, score))
 
     # 训练模型
     @classmethod
