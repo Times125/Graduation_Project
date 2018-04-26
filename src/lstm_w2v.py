@@ -231,6 +231,7 @@ class LSTMClassifier:
         hist = model.fit(x_train, y_train, batch_size=cls.batch_size, epochs=cls.n_epoch,
                          verbose=1, validation_split=0.1, shuffle=True, validation_data=(x_test, y_test),
                          callbacks=[early_stopping])  # 训练模型10%测试集，10%验证集合
+
         print('=============>history ', hist.history)  # 在每个epoch后记录训练/测试的loss和正确率
         score = model.evaluate(x_test, y_test, batch_size=cls.batch_size)  # 评估模型
 
