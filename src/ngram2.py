@@ -458,35 +458,25 @@ class Ngram:
         x_train = pos_feature[index:] + neg_feature[index:]
         x_test = pos_feature[:index] + neg_feature[:index]
 
-        BNB_A, BNB_PP, BNB_PR, BNB_PF1, BNB_NP, BNB_NR, BNB_NF1 = Ngram.score(BernoulliNB(), x_train, x_test)
-        MNB_A, MNB_PP, MNB_PR, MNB_PF1, MNB_NP, MNB_NR, MNB_NF1 = Ngram.score(MultinomialNB(), x_train, x_test)
-        LR_A, LR_PP, LR_PR, LR_PF1, LR_NP, LR_NR, LR_NF1 = Ngram.score(LogisticRegression(), x_train, x_test)
-        LSVC_A, LSVC_PP, LSVC_PR, LSVC_PF1, LSVC_NP, LSVC_NR, LSVC_NF1 = Ngram.score(LinearSVC(), x_train, x_test)
-        NSVC_A, NSVC_PP, NSVC_PR, NSVC_PF1, NSVC_NP, NSVC_NR, NSVC_NF1 = Ngram.score(NuSVC(), x_train, x_test)
-        SVC_A, SVC_PP, SVC_PR, SVC_PF1, SVC_NP, SVC_NR, SVC_NF1 = Ngram.score(SVC(), x_train, x_test)
+        SVC_A, SVC_PP, SVC_PR, SVC_PF1, SVC_NP, SVC_NR, SVC_NF1 = Ngram.score(SVC(gamma=0.015), x_train, x_test)
         # 记录 准确率（Accuracy）、正面精确率（pos_precision），正面召回率（pos_recall）、正面F1值、负面面精确率（neg_precision）、负面召回率（neg_recall）,负面F1值
         log.console_out(filename, taskname, n,
-                        ('BNB', BNB_A, 'pos:', BNB_PP, BNB_PR, BNB_PF1, 'neg:', BNB_NP, BNB_NR, BNB_NF1),
-                        ('MNB', MNB_A, 'pos:', MNB_PP, MNB_PR, MNB_PF1, 'neg:', MNB_NP, MNB_NR, MNB_NF1),
-                        ('LR', LR_A, 'pos:', LR_PP, LR_PR, LR_PF1, 'neg:', LR_NP, LR_NR, LR_NF1),
-                        ('SVC-rbf', SVC_A, 'pos:', SVC_PP, SVC_PR, SVC_PF1, 'neg:', SVC_NP, SVC_NR, SVC_NF1),
-                        ('LSVC', LSVC_A, 'pos:', LSVC_PP, LSVC_PR, LSVC_PF1, 'neg:', LSVC_NP, LSVC_NR, LSVC_NF1),
-                        ('NuSVC', NSVC_A, 'pos:', NSVC_PP, NSVC_PR, NSVC_PF1, 'neg:', NSVC_NP, NSVC_NR, NSVC_NF1))
+                        ('SVC-rbf', SVC_A, 'pos:', SVC_PP, SVC_PR, SVC_PF1, 'neg:', SVC_NP, SVC_NR, SVC_NF1))
 
 
 if __name__ == '__main__':
     print(time.strftime('%Y-%m-%d %A %H:%M:%S', time.localtime(time.time())))
     # 7种搭配方案
     tasks = ['unigram', 'bigram', 'uni_bigram', 'unigram_info', 'uni_info_bigram', 'uni_bi_tri', 'uni_info_bi_tri']
-    ns = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
+    ns = [1000, 2000, 3000 ,4000, 5000, 6000, 7000, 8000, 9000, 10000]
     # nss = [11000, 12000, 13000, 14000, 15000, 16000, 17000, 18000, 19000, 20000]
     # for i in range(6, 7):
     #     filename = 'record4.txt'
     #     if tasks[i] == tasks[6]:  # uni_info_bi_tri
     #         for n in nss:
     #             Ngram.record_res(filename, tasks[i], i, n)
-    for i in range(0, 7):
-        filename = 'test.txt'
+    for i in range(0, 3):#0_3\3-4\4-6\6-7
+        filename = '.txt'
         if tasks[i] == tasks[0]:  # uni
             Ngram.record_res(filename, tasks[i], i, 0)
         elif tasks[i] == tasks[1]:  # bi

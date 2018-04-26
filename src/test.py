@@ -114,14 +114,14 @@ class Testme:
 
 
 if __name__ == '__main__':
-    log.console_out('1.txt',(1,2,(4,5)))
-    log.console_out('2.txt','22222')
+    #log.console_out('1.txt',(1,2,(4,5)))
+    #log.console_out('2.txt','22222')
     # x = "@times doesn't miss  him  and worries like it's her job or something #HMS.. ????? ------  >_<  >_> >< *_* :D ;0) Work's fine? an interesting coworker, ha! o_O Lots of typing, what fun! <3<3"
-    # x = 'he T_T >y< :( <3<3'
+    x = '@MrsFox Yeah...doesn\'t taste like #bacon at all :-(  http://tinyurl.com/c2wwgp'
     # feat = {}
     # x = "@times still doesn't miss  him  and worries like it's ? .her job or something ??? .... ---------"
-    # y = Testme.text_parse(x)
-    # print(y)
+    y = Testme.text_parse(x)
+    print(y)
     # print('\n')
     # negation_features = Testme.get_negation_features(y)
     # print("negation_features-->", negation_features)
