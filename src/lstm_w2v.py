@@ -24,7 +24,7 @@ from gensim.corpora.dictionary import Dictionary
 from keras.preprocessing import sequence
 from keras.models import Sequential
 from keras.layers.embeddings import Embedding
-from keras.layers.recurrent import LSTM
+from keras.layers.recurrent import LSTM, RNN
 from keras.layers.core import Dense, Dropout, Activation
 from keras.models import model_from_yaml
 
