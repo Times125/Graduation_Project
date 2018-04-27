@@ -13,12 +13,11 @@ import multiprocessing
 import nltk
 import yaml
 import numpy as np
-import jieba
-import keras
+
 import pandas as pd
 import re
 from src import log
-from keras.callbacks import EarlyStopping
+from src.loss_history import LossHistory
 from sklearn.model_selection import train_test_split
 from gensim.models.word2vec import Word2Vec
 from gensim.corpora.dictionary import Dictionary
@@ -38,14 +37,14 @@ LSTM_MODEL_PATH = 'lstm_data/lstm_{}.h5'
 
 
 class LSTMClassifier:
-    vocab_dim = 100  # 词向量维度
+    vocab_dim = 250  # 词向量维度
     maxlen = 140  # 文本保留最大长度
     n_iterations = 1  # 词向量训练次数，可以多训练几次
-    n_exposures = 10  # 词向量训练过程中，词频小于10的词语将会被忽略
+    n_exposures = 5  # 词向量训练过程中，词频小于5的词语将会被忽略
     window_size = 7  # 词向量训练过程中窗口的大小，主要是决定某个单词被窗口内的词有关
-    batch_size = 32  # 指定进行梯度下降时每个batch包含的样本数
-    n_epoch = 20  # 训练的轮数，每个epoch会把训练集轮一遍
     input_length = 140
+    batch_size = 32  # 指定进行梯度下降时每个batch包含的样本数
+    n_epoch = 5  # 训练的轮数，每个epoch会把训练集轮一遍
     cpu_count = multiprocessing.cpu_count() or 4
 
     # 去除类似soooo 保留soo
@@ -172,7 +171,10 @@ class LSTMClassifier:
         """
 
         def _parse_dataset(sentences):
-            """Words become integers"""
+            """Words become integers
+                将每一个句子中的每个词用词向量存在的词的索引表示出来，
+                如果词没有在索引中出现，则标为0
+            """
             data = []
             for sentence in sentences:
                 new_txt = []
@@ -187,10 +189,10 @@ class LSTMClassifier:
         if combined is not None and model is not None:
             gensim_dict = Dictionary()
             gensim_dict.doc2bow(model.wv.vocab.keys(), allow_update=True)
-            w2indx = {v: k + 1 for k, v in gensim_dict.items()}  # 所有频数超过10的词语的索引
-            w2vec = {word: model[word] for word in w2indx.keys()}  # 所有频数超过10的词语的词向量
+            w2indx = {v: k + 1 for k, v in gensim_dict.items()}  # 所有频数超过5的词语的索引
+            w2vec = {word: model[word] for word in w2indx.keys()}  # 所有频数超过5的词语的词向量
             combined = _parse_dataset(combined)
-            combined = sequence.pad_sequences(combined, maxlen=cls.maxlen)  # 每个句子所含词语对应的索引，所有句子中含有频数小于10的词语，索引为0
+            combined = sequence.pad_sequences(combined, maxlen=cls.maxlen)  # 每个句子所含词语对应的索引，所有句子中含有频数小于5的词语，索引为0
             return w2indx, w2vec, combined
         else:
             print('No data provided...')
@@ -209,11 +211,11 @@ class LSTMClassifier:
 
     @classmethod
     def get_data(cls, index_dict, word_vectors, combined, y):
-        n_symbols = len(index_dict) + 1  # 所有单词的索引数，频数小于10的词语索引为0，所以加1
+        n_symbols = len(index_dict) + 1  # 所有单词的索引数，频数小于5的词语索引为0，所以加1
         embedding_weights = np.zeros((n_symbols, cls.vocab_dim))  # 索引为0的词语，词向量全为0
         for word, index in index_dict.items():  # 从索引为1的词语开始，对每个词语对应其词向量
             embedding_weights[index, :] = word_vectors[word]
-        x_train, x_test, y_train, y_test = train_test_split(combined, y, test_size=0.2)
+        x_train, x_test, y_train, y_test = train_test_split(combined, y, test_size=0.1, shuffle=True)
         return n_symbols, embedding_weights, x_train, y_train, x_test, y_test
 
     @classmethod
@@ -222,15 +224,19 @@ class LSTMClassifier:
         model.add(Embedding(output_dim=cls.vocab_dim, input_dim=n_symbols, mask_zero=True,
                             weights=[embedding_weights], input_length=cls.input_length))  # Adding Input Length
         model.add(LSTM(units=50, activation='sigmoid', recurrent_activation='hard_sigmoid'))
-        model.add(Dropout(0.5))  # 防止过拟合的
+        model.add(Dropout(0.55))  # 防止过拟合的
         model.add(Dense(1))
         model.add(Activation('sigmoid'))
 
         model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])  # 编译模型
-        early_stopping = EarlyStopping(monitor='val_loss', patience=3)  # 当经过3轮验证集的loss不再下降时，中断训练
+        loss_history = LossHistory()
+        # early_stopping = EarlyStopping(monitor='val_loss', patience=3)  # 当经过3轮验证集的loss不再下降时，中断训练
+        # print(x_test[:1])
+        # print('\n\n')
+        # x_test, y_test, x_val, y_val = train_test_split(x_test, y_test, test_size=0.5, shuffle=True)  # 训练模型10%测试集，10%验证集合
+        # print(x_test[:1])
         hist = model.fit(x_train, y_train, batch_size=cls.batch_size, epochs=cls.n_epoch,
-                         verbose=1, validation_split=0.1, shuffle=True, validation_data=(x_test, y_test),
-                         callbacks=[early_stopping])  # 训练模型10%测试集，10%验证集合
+                         verbose=1, validation_split=0.11111, callbacks=[loss_history])
 
         print('=============>history ', hist.history)  # 在每个epoch后记录训练/测试的loss和正确率
         score = model.evaluate(x_test, y_test, batch_size=cls.batch_size)  # 评估模型
@@ -239,8 +245,9 @@ class LSTMClassifier:
         with open(LSTM_YML_PATH.format(use_word_dim), 'w') as outfile:
             outfile.write(yaml.dump(yaml_string, default_flow_style=True))
         model.save_weights(LSTM_MODEL_PATH.format(use_word_dim))
+        loss_history.loss_plot('epoch')
         print('Test score:', score)
-        log.console_out('lstm_w2v.txt', (100, hist.history, score))
+        log.console_out('lstm_w2v.txt', (250, hist.history, score))
 
     # 训练模型
     @classmethod
@@ -252,10 +259,10 @@ class LSTMClassifier:
         cls.train_lstm(n_symbols, embedding_weights, x_train, y_train, x_test, y_test, str(cls.vocab_dim))
 
     @classmethod
-    def input_transform(cls, string, usage):
-        words = jieba.lcut(string)
+    def input_transform(cls, string, use_word_dim):
+        words = cls.text_parse(string)
         words = np.array(words).reshape(1, -1)
-        model = Word2Vec.load(W2V_MODEL_PATH.format(usage))
+        model = Word2Vec.load(W2V_MODEL_PATH.format(use_word_dim))
         _, _, combined = cls.create_dictionaries(model, words)
         return combined
 
